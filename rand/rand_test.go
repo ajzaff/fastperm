@@ -33,9 +33,7 @@ func TestRandUint64(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &Rand{
-				s: tt.fields.s,
-			}
+			r := Rand(tt.fields.s)
 			if got := r.Uint64(); got != tt.want {
 				t.Errorf("Rand.Uint64() = %v, want %v", got, tt.want)
 			}
@@ -62,5 +60,33 @@ func BenchmarkRandom(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// allow for histogram 0.01% tolerance
+const (
+	k         = 1000
+	tolerance = 1.001
+)
+
+func BenchmarkFairness(b *testing.B) {
+	seeds := gorand.NewSource(5577006791947779410)
+	hist := make([]uint64, 64)
+	for i := 0; i < b.N; i++ {
+		r := Rand(seeds.Int63())
+		for j := 0; j < k; j++ {
+			x := r.Uint64()
+			for i := 0; x > 0; x >>= 1 {
+				hist[i] += uint64(x & 1)
+				i++
+			}
+		}
+	}
+	lo := uint64(k * float64(b.N) / (64 * tolerance))
+	hi := uint64(k * float64(b.N) * (64 * tolerance))
+	for i := 0; i < 64; i++ {
+		if hist[i] < lo || hi < hist[i] {
+			b.Errorf("histogram error: %d < %d < %d", lo, hist[i], hi)
+		}
 	}
 }
