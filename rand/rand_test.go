@@ -63,30 +63,59 @@ func BenchmarkRandom(b *testing.B) {
 	}
 }
 
-// allow for histogram 0.01% tolerance
+// allow for Kolmogorov-Smirnov tolerance
 const (
-	k         = 1000
-	tolerance = 1.001
+	n = 64
+	k = 1e7
+
+	tolerance = 5.4e-5
 )
 
+// BenchmarkFairness use Kolmogorov-Smirnov to test fairness
 func BenchmarkFairness(b *testing.B) {
 	seeds := gorand.NewSource(5577006791947779410)
-	hist := make([]uint64, 64)
+	hist := make([]float64, n)
 	for i := 0; i < b.N; i++ {
+		// build the histogram
 		r := Rand(seeds.Int63())
 		for j := 0; j < k; j++ {
 			x := r.Uint64()
 			for i := 0; x > 0; x >>= 1 {
-				hist[i] += uint64(x & 1)
+				hist[i] += float64(x & 1)
 				i++
 			}
 		}
 	}
-	lo := uint64(k * float64(b.N) / (64 * tolerance))
-	hi := uint64(k * float64(b.N) * (64 * tolerance))
-	for i := 0; i < 64; i++ {
-		if hist[i] < lo || hi < hist[i] {
-			b.Errorf("histogram error: %d < %d < %d", lo, hist[i], hi)
+	s := float64(0)
+	for i := 0; i < n; i++ {
+		// sum the hist
+		s += hist[i]
+	}
+	for i := 0; i < n; i++ {
+		// normalize the hist
+		hist[i] /= s
+	}
+	cdf := make([]float64, n)
+	edf := make([]float64, n)
+	cdf[0] = 1 / float64(n)
+	edf[0] = hist[0]
+	for i := 1; i < n; i++ {
+		// build the cdf & edf
+		cdf[i] = 1/float64(n) + cdf[i-1]
+		edf[i] = hist[i] + edf[i-1]
+	}
+	tol := float64(0)
+	for i := 0; i < n; i++ {
+		// find the max tolerance
+		v := cdf[i] - edf[i]
+		if v < 0 {
+			v = -v
 		}
+		if v > tol {
+			tol = v
+		}
+	}
+	if tol > tolerance {
+		b.Errorf("KS above acceptable threshold: %f > %f", tol, tolerance)
 	}
 }

@@ -19,7 +19,7 @@ func (r *Rand) Slice(dst []Item) {
 	i := n - 2
 	for ; i > 0; i-- {
 		v := rg.Uint32()
-		j := int((uint64(v) * uint64(n)) >> 32)
+		j := int((uint64(v) * uint64(i+1)) >> 32)
 		dst[i], dst[j] = dst[j], dst[i]
 	}
 }
