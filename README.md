@@ -2,7 +2,7 @@
 
 ## `tl;dr`
 
-Approaching the limits of shuffling performance in Go.
+Shuffle slightly faster.
 
 ## Benchmark
 
